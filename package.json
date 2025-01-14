@@ -1,7 +1,7 @@
 {
   "name": "typescript-app",
   "version": "1.0.0",
-  "description": "A TypeScript application for various services and utilities.",
+  "description": "A sample TypeScript RAG application.",
   "main": "src/index.ts",
   "scripts": {
     "build": "tsc",
@@ -32,6 +32,6 @@
     "node",
     "application"
   ],
-  "author": "Your Name",
+  "author": "Thomas T Vempeny",
   "license": "MIT"
 }

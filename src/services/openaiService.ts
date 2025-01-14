@@ -8,7 +8,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
 const PINECONE_API_KEY = process.env.PINECONE_API_KEY!;
 const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX_NAME!;
 const EMBEDDING_MODEL = "text-embedding-ada-002";
-const COMPLETION_MODEL = "gpt-4";
+const COMPLETION_MODEL = "gpt-4o-mini";
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 const pinecone = new Pinecone({ apiKey: PINECONE_API_KEY });
