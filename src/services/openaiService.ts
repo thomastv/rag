@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import { Pinecone } from '@pinecone-database/pinecone';
 import OpenAI from 'openai';
+import { v4 as uuidv4 } from 'uuid';
 
 dotenv.config();
 
@@ -14,17 +15,9 @@ const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 const pinecone = new Pinecone({ apiKey: PINECONE_API_KEY });
 const index = pinecone.index(PINECONE_INDEX_NAME);
 
-interface QueryRequest {
-    question: string;
-}
+// In-memory database for storing conversations
+const conversations: { [sessionId: string]: OpenAI.Chat.Completions.ChatCompletionMessageParam[] } = {};
 
-interface QueryResponse {
-    answer: string;
-    sources: Array<{
-        source: string;
-        chunk: number;
-    }>;
-}
 
 async function createEmbedding(text: string): Promise<number[]> {
     try {
@@ -53,31 +46,49 @@ async function queryPinecone(embedding: number[], topK: number = 3) {
     }
 }
 
-async function generateAnswer(question: string, context: string): Promise<string> {
+async function generateAnswer(question: string, context: string, sessionId: string): Promise<string> {
     try {
+        const conversationHistory : OpenAI.Chat.Completions.ChatCompletionMessageParam[] = conversations[sessionId] || [];
+        const messages : OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+            {
+                role: "system",
+                content: "You are a helpful assistant. Answer the question based on the provided context. If the answer cannot be found in the context, say so."
+            },
+            ...conversationHistory,
+            {
+                role: "user",
+                content: `Context: ${context}\n\nQuestion: ${question}`
+            }
+        ];
+        console.log(messages);
+
         const completion = await openai.chat.completions.create({
             model: COMPLETION_MODEL,
-            messages: [
-                {
-                    role: "system",
-                    content: "You are a helpful assistant. Answer the question based on the provided context. If the answer cannot be found in the context, say so."
-                },
-                {
-                    role: "user",
-                    content: `Context: ${context}\n\nQuestion: ${question}`
-                }
-            ],
+            messages: messages,
             temperature: 0.5,
             max_tokens: 500
         });
-        return completion.choices[0].message.content || "I cannot answer that question.";
+
+        const answer = completion.choices[0].message.content || "I cannot answer that question.";
+
+        // Update the conversation history with the new question and answer
+        conversationHistory.push({ role: "user", content: question });
+        conversationHistory.push({ role: "assistant", content: answer });
+
+        if (conversationHistory.length > 10) {
+            conversationHistory.splice(0, 2); // Keep only the last 5 pairs of question and answer
+        }
+
+        conversations[sessionId] = conversationHistory;
+
+        return answer;
     } catch (error) {
         console.error('Error generating answer:', error);
         throw new Error('Failed to generate answer');
     }
 }
 
-export const querryModel = async (question: string) => {
+export const querryModel = async (question: string, sessionId: string) => {
     try {
         console.log("Got question to answer: ", question);
         const questionEmbedding = await createEmbedding(question);
@@ -86,7 +97,13 @@ export const querryModel = async (question: string) => {
             .map(match => match.metadata?.text)
             .filter(text => text !== undefined)
             .join('\n\n');
-        const answer = await generateAnswer(question, context);
+
+        // Add the current question to the session's conversation history
+        if (!conversations[sessionId]) {
+            conversations[sessionId] = [];
+        }
+
+        const answer = await generateAnswer(question, context, sessionId);
         return {
             answer,
             sources: matches.map(match => ({
@@ -97,5 +114,28 @@ export const querryModel = async (question: string) => {
     } catch (error) {
         console.error('Error:', error);
         return { error: 'Internal server error' };
+    }
+}
+
+// Start a new conversation and return a session ID
+export const startConversation = () => {
+    let sessionId = uuidv4();
+
+    while (conversations[sessionId]) {
+        sessionId = uuidv4();
+        console.log("Creating new session id");
+    }
+
+    conversations[sessionId] = [];
+    return { sessionId };
+}
+
+// End a conversation and delete the session data
+export const endConversation = (sessionId: string) => {
+    if (conversations[sessionId]) {
+        delete conversations[sessionId];
+        return { message: 'Conversation ended successfully' };
+    } else {
+        return { error: 'Invalid session ID' };
     }
 }

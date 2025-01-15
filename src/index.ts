@@ -1,7 +1,7 @@
 import express from 'express';
 import config from './config/config';
 import { indexPdfFiles } from './services/pineconeService'
-import { querryModel } from './services/openaiService';
+import { querryModel, startConversation, endConversation } from './services/openaiService';
 
 
 const app = express();
@@ -24,10 +24,21 @@ app.post('/indexfiles', async (req, res) => {
     }
 });
 
+app.post('/startConversation', (req, res) => {
+    const response = startConversation();
+    res.json(response);
+});
+
+app.post('/endConversation', (req, res) => {
+    const { sessionId } = req.body;
+    const response = endConversation(sessionId);
+    res.json(response);
+});
+
 app.post('/query', async (req, res) => {
     try {        
-        const { question } = req.body;
-        const response = await querryModel(question);
+        const { question, sessionId } = req.body;
+        const response = await querryModel(question, sessionId);
         res.status(200).json(response);
     }
     catch (error: any) {
