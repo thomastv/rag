@@ -2,6 +2,9 @@ import dotenv from 'dotenv';
 import { Pinecone } from '@pinecone-database/pinecone';
 import OpenAI from 'openai';
 import { v4 as uuidv4 } from 'uuid';
+import { tools } from '../tools';
+import { zodFunction } from 'openai/helpers/zod'
+import { runTool } from '../tools/toolRunner';
 
 dotenv.config();
 
@@ -60,20 +63,39 @@ async function generateAnswer(question: string, context: string, sessionId: stri
                 content: `Context: ${context}\n\nQuestion: ${question}`
             }
         ];
-        console.log(messages);
+        // console.log(messages);
+
+        const formattedTools = tools.map(zodFunction)
 
         const completion = await openai.chat.completions.create({
             model: COMPLETION_MODEL,
             messages: messages,
             temperature: 0.5,
-            max_tokens: 500
+            ...(formattedTools.length > 0 && {
+                tools: formattedTools,
+                tool_choice: 'auto',
+                parallel_tool_calls: false,
+            }),
+
         });
+        const response = completion.choices[0].message;
+        let answer = response.content || "I cannot answer that question.";
 
-        const answer = completion.choices[0].message.content || "I cannot answer that question.";
-
-        // Update the conversation history with the new question and answer
         conversationHistory.push({ role: "user", content: question });
         conversationHistory.push({ role: "assistant", content: answer });
+        
+        if(response.tool_calls){
+            console.log("Tool call detected")
+            console.log(response.tool_calls)
+
+            const toolCall = response.tool_calls[0]
+
+            const toolResponse = await runTool(toolCall, question);
+            answer = toolResponse || "Tool was not able to generate an answer.";
+           // conversationHistory.push({role: 'tool', content: toolResponse, tool_call_id: toolCall.id })
+        }
+
+        // Update the conversation history with the new question and answer
 
         if (conversationHistory.length > 10) {
             conversationHistory.splice(0, 2); // Keep only the last 5 pairs of question and answer
@@ -86,6 +108,11 @@ async function generateAnswer(question: string, context: string, sessionId: stri
         console.error('Error generating answer:', error);
         throw new Error('Failed to generate answer');
     }
+}
+
+//Function to query the alarm list
+async function queryAlarmList(): Promise<string[]> {
+    return ["Alarm 1", "Alarm 2"];
 }
 
 export const querryModel = async (question: string, sessionId: string) => {
