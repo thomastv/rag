@@ -1,24 +1,8 @@
-# TypeScript Application
+# RAG Application
 
 ## Overview
-This is a TypeScript application designed to demonstrate the integration of various services and utilities. The application includes functionality for interacting with the OpenAI API, managing data with Pinecone, and parsing PDF files.
+This sample RAG application is designed to test the OpenAI API to manage data with Pinecone by parsing PDF files.
 
-## Project Structure
-```
-typescript-app
-├── src
-│   ├── index.ts
-│   ├── config
-│   │   └── config.ts
-│   ├── services
-│   │   ├── openaiService.ts
-│   │   ├── pineconeService.ts
-│   └── utils
-│       └── pdfParser.ts
-├── package.json
-├── tsconfig.json
-└── README.md
-```
 
 ## Installation
 1. Clone the repository:
